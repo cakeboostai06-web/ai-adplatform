@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CakeBoost.AI - AI Marketing Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: linear-gradient(135deg, #2a0b38 0%, #4d1036 100%); background-attachment: fixed; color: #f3e8ff; min-height: 100vh; }
+        .navbar-custom { background: rgba(19, 10, 28, 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(236, 72, 153, 0.2); }
+        .glass-card { background: rgba(29, 15, 43, 0.65); backdrop-filter: blur(14px); border: 1px solid rgba(236, 72, 153, 0.2); border-radius: 18px; }
+        .form-control, .form-check-input { background-color: rgba(39, 20, 56, 0.8); border: 1px solid #5a2c7a; color: #fdf4ff; border-radius: 10px; }
+        .form-control:focus { background-color: rgba(49, 25, 71, 0.9); border-color: #ec4899; box-shadow: 0 0 0 0.25rem rgba(236, 72, 153, 0.25); color: #ffffff; }
+        .form-control::placeholder { color: #d8b4fe !important; opacity: 0.7 !important; font-weight: 400; }
+        .btn-gradient { background: linear-gradient(135deg, #ec4899 0%, #a855f7 100%); border: none; color: white; font-weight: 700; border-radius: 10px; transition: all 0.3s ease; }
+        .btn-gradient:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(236, 72, 153, 0.4); color: white; }
+        .btn-google { background-color: white; color: #1f2937; font-weight: 600; border-radius: 8px; border: 1px solid #e5e7eb; transition: all 0.2s; }
+        .btn-google:hover { background-color: #f9fafb; }
+        .nav-pills .nav-link { color: #d8b4fe; border-radius: 8px; font-weight: 500; }
+        .nav-pills .nav-link.active { background: #ec4899; color: white; }
+        .badge-tag { background: rgba(236, 72, 153, 0.15); color: #ff85c6; border: 1px solid rgba(236, 72, 153, 0.4); border-radius: 20px; padding: 6px 14px; font-size: 0.85rem; display: inline-block; margin: 4px; }
+        .modal-content { background-color: #1e102b; border: 1px solid #ec4899; color: white; border-radius: 20px; }
+        .user-avatar { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #ec4899; object-fit: cover; cursor: pointer; }
+        .dropdown-menu-custom { background: #271438; border: 1px solid #5a2c7a; }
+        .dropdown-item { color: #e9d5ff; font-weight: 500; }
+        .dropdown-item:hover { background: #4d1036; color: white; }
+    </style>
+</head>
+<body>
+
+<!-- Persistent Top Navbar -->
+<nav class="navbar navbar-custom fixed-top py-3">
+    <div class="container d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center" style="cursor: pointer;" id="navHomeBtn">
+            <img src="logo1.jpeg" alt="CakeBoost Logo" height="40" class="me-2 rounded" onerror="this.src='https://via.placeholder.com/40/ec4899/ffffff?text=CB'">
+            <span class="fs-4 fw-bold text-white" style="letter-spacing: -0.5px;">CakeBoost<span style="color: #ec4899;">.AI</span></span>
+        </div>
+        
+        <div id="authSection">
+            <button class="btn btn-google px-4 py-2 shadow-sm" id="googleLoginBtn">
+                <i class="bi bi-google me-2 text-danger"></i> Continue with Gmail
+            </button>
+            
+            <div class="dropdown d-none" id="userProfileMenu">
+                <div class="d-flex align-items-center" data-bs-toggle="dropdown" aria-expanded="false">
+                    <div class="text-end me-2 d-none d-md-block">
+                        <div class="fw-bold text-white" id="userNameDisplay" style="font-size: 0.9rem;">User Name</div>
+                        <span class="badge" id="userStatusBadge" style="background: #a855f7; font-size: 0.7rem;">Free Tier</span>
+                    </div>
+                    <img src="https://via.placeholder.com/40" id="userAvatarDisplay" class="user-avatar" alt="Profile">
+                </div>
+                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-custom mt-2 shadow">
+                    <li><a class="dropdown-item" href="#" id="navHistoryBtn"><i class="bi bi-clock-history me-2"></i> Download History</a></li>
+                    <li><a class="dropdown-item" href="#" id="navUpgradeBtn"><i class="bi bi-gem me-2" style="color: #ec4899;"></i> Subscription Settings</a></li>
+                    <li><hr class="dropdown-divider" style="border-color: #5a2c7a;"></li>
+                    <li><a class="dropdown-item text-danger" href="http://localhost:3001/api/logout"><i class="bi bi-box-arrow-right me-2"></i> Log Out</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- MAIN WORKSPACE (Generator) -->
+<div class="container" id="generatorView" style="margin-top: 100px; padding-bottom: 50px;">
+    <div class="text-center mb-5">
+        <h1 class="fw-bold tracking-tight text-white">Generate Sweet Campaigns Instantly</h1>
+        <p class="text-secondary" style="color: #e9d5ff !important;">Posters, Social Copy, and Smart QR codes unified in one workspace.</p>
+    </div>
+
+    <div class="row g-4">
+        <!-- LEFT PANEL -->
+        <div class="col-lg-5">
+            <div class="glass-card p-4 shadow-lg">
+                <h4 class="fw-bold mb-3"><i class="bi bi-magic me-2" style="color: #ff85c6;"></i>Campaign Settings</h4>
+                
+                <div class="mb-3">
+                    <label class="form-label small text-uppercase fw-semibold" style="color: #e9d5ff;">Business Name *</label>
+                    <input type="text" id="businessName" class="form-control py-2" placeholder="e.g., Sweet Treats Bakery">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-uppercase fw-semibold" style="color: #e9d5ff;">Marketing Prompt / Goal *</label>
+                    <textarea id="prompt" class="form-control" rows="3" placeholder="e.g., Launching our new red velvet cupcakes this weekend!"></textarea>
+                </div>
+
+                <div class="border rounded-3 p-3 mb-4" style="border-color: rgba(236,72,153,0.4) !important; background: rgba(0,0,0,0.25);">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="includeQrToggle" checked>
+                        <label class="form-check-label fw-bold text-white" for="includeQrToggle">Include Smart QR Packaging</label>
+                    </div>
+
+                    <div id="qrFields">
+                        <div class="row align-items-center mb-2">
+                            <div class="col-4"><label class="small fw-bold mb-0" style="color: #e9d5ff;">Shop Name</label></div>
+                            <div class="col-8"><input type="text" id="qrName" class="form-control form-control-sm" placeholder="e.g., Sweet Treats Bakery"></div>
+                        </div>
+                        <div class="row align-items-center mb-2">
+                            <div class="col-4"><label class="small fw-bold mb-0" style="color: #e9d5ff;">Contact</label></div>
+                            <div class="col-8"><input type="text" id="qrContact" class="form-control form-control-sm" placeholder="e.g., 012-3456789"></div>
+                        </div>
+                        <div class="row align-items-center mb-2">
+                            <div class="col-4"><label class="small fw-bold mb-0" style="color: #e9d5ff;">Location</label></div>
+                            <div class="col-8"><input type="text" id="qrLocation" class="form-control form-control-sm" placeholder="e.g., Kuala Lumpur"></div>
+                        </div>
+                        <div class="row align-items-center mb-0">
+                            <div class="col-4"><label class="small fw-bold mb-0" style="color: #e9d5ff;">Op. Hours</label></div>
+                            <div class="col-8"><input type="text" id="qrHours" class="form-control form-control-sm" placeholder="e.g., 9 AM - 10 PM"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="generateBtn" class="btn btn-gradient w-100 py-3 fs-5">
+                    <i class="bi bi-stars me-2"></i>Generate Campaign
+                </button>
+
+                <div id="loading" class="text-center mt-4 d-none">
+                    <div class="spinner-border" style="color: #ff85c6;" role="status"></div>
+                    <p class="mt-2 small" style="color: #e9d5ff;">Baking your campaign assets...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="col-lg-7">
+            <div class="glass-card p-4 shadow-lg h-100 position-relative">
+                <h4 class="fw-bold mb-4"><i class="bi bi-grid-1x2 me-2" style="color: #c084fc;"></i>Live Output</h4>
+
+                <div id="emptyState" class="text-center py-5" style="color: #c084fc; opacity: 0.6;">
+                    <i class="bi bi-box-seam display-3 mb-3 d-block"></i>
+                    <p>Fill in the campaign details and click Generate to see your multi-channel results.</p>
+                </div>
+
+                <div id="results" class="d-none">
+                    <div class="mb-4">
+                        <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                            <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-fb"><i class="bi bi-facebook me-1"></i> Facebook</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-ig"><i class="bi bi-instagram me-1"></i> Instagram</button></li>
+                            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-wa"><i class="bi bi-whatsapp me-1"></i> WhatsApp</button></li>
+                        </ul>
+
+                        <div class="tab-content border rounded-3 p-3" style="border-color: rgba(236,72,153,0.4) !important; background: rgba(0,0,0,0.25);">
+                            <div class="tab-pane fade show active" id="tab-fb"><p id="fbOutput" class="mb-0 text-light white-space-pre"></p></div>
+                            <div class="tab-pane fade" id="tab-ig"><p id="igOutput" class="mb-0 text-light white-space-pre"></p></div>
+                            <div class="tab-pane fade" id="tab-wa"><p id="waOutput" class="mb-0 text-light white-space-pre"></p></div>
+                        </div>
+                        <div class="mt-3" id="hashtagContainer"></div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-6">
+                            <div class="border rounded-3 p-3 text-center" style="border-color: rgba(236,72,153,0.4) !important; background: rgba(0,0,0,0.25);">
+                                <span class="small fw-semibold d-block mb-2 text-uppercase" style="color: #e9d5ff;">AI Poster Asset</span>
+                                <img id="posterUrl" src="" class="img-fluid rounded-2 shadow" style="max-height: 220px; object-fit: cover;" alt="Poster">
+                            </div>
+                        </div>
+                        <div class="col-sm-6" id="qrCardWrapper">
+                            <div class="border rounded-3 p-3 text-center" style="border-color: rgba(236,72,153,0.4) !important; background: rgba(0,0,0,0.25);">
+                                <span class="small fw-semibold d-block mb-2 text-uppercase" style="color: #e9d5ff;">Smart QR Packaging</span>
+                                <img id="qrOutput" src="" class="img-fluid rounded-2 shadow bg-white p-2" style="max-height: 220px;" alt="QR Code">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="downloadBtn" class="btn btn-light w-100 py-3 fw-bold fs-5 text-dark mt-auto">
+                        <i class="bi bi-cloud-arrow-down-fill me-2" style="color: #ec4899;"></i> Download High-Res Assets
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- HISTORY WORKSPACE (Hidden by default) -->
+<div class="container d-none" id="historyView" style="margin-top: 100px; padding-bottom: 50px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-white"><i class="bi bi-clock-history me-2" style="color: #a855f7;"></i>Your Generated History</h2>
+    </div>
+    
+    <div class="alert bg-black bg-opacity-25 border border-danger text-white d-none" id="historyWarning">
+        <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i> <strong>Subscription Expired!</strong> You can view your past campaigns, but you must renew your subscription to download the assets.
+    </div>
+
+    <div class="row g-4" id="historyGrid">
+        <div class="col-12 text-center text-secondary py-5">
+            Loading your past generated magic...
+        </div>
+    </div>
+</div>
+
+<!-- Subscription Modal -->
+<!-- Subscription Modal -->
+<div class="modal fade" id="paywallModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-4 border-0 shadow-lg" style="background: linear-gradient(135deg, #2a0b38 0%, #130a1c 100%); border: 1px solid #ff85c6 !important;">
+            <div class="modal-header border-0 pb-0 justify-content-center position-relative">
+                <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="text-center">
+                    <i class="bi bi-gem display-1" style="color: #ff85c6;"></i>
+                </div>
+            </div>
+            <div class="modal-body text-center pt-2">
+                <h2 class="fw-bold text-white mb-3">Upgrade to Premium</h2>
+                <p style="color: #e9d5ff;">Subscribe to CakeBoost.AI to download your high-resolution posters, copy, and remove watermarks from your Smart QR codes.</p>
+                <ul class="list-unstyled text-start mx-auto mt-4" style="max-width: 250px; color: #fdf4ff;">
+                    <li class="mb-2"><i class="bi bi-check-circle-fill me-2" style="color: #10b981;"></i> Unlimited Downloads</li>
+                    <li class="mb-2"><i class="bi bi-check-circle-fill me-2" style="color: #10b981;"></i> 4K Poster Resolution</li>
+                    <li class="mb-2"><i class="bi bi-check-circle-fill me-2" style="color: #10b981;"></i> Priority AI Generation</li>
+                </ul>
+            </div>
+            <div class="modal-footer border-0 pt-0 flex-column">
+                <!-- THE FIX IS INJECTED DIRECTLY INTO THIS BUTTON -->
+                <button onclick="forceStripeCheckout(this)" type="button" class="btn btn-gradient w-100 py-3 fs-5 mb-2">Subscribe for RM35/mo</button>
+                <small style="color: #c084fc;">Cancel anytime. Secure checkout.</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- INLINE SCRIPT TO GUARANTEE EXECUTION -->
+<script>
+async function forceStripeCheckout(btnElement) {
+    btnElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Connecting...';
+    btnElement.disabled = true;
+    try {
+        const response = await fetch('http://localhost:3001/api/create-checkout-session', { method: 'POST' });
+        const data = await response.json();
+        if (data.url) {
+            window.location.href = data.url; 
+        } else {
+            alert("Check terminal logs. Missing Stripe Keys.");
+            btnElement.innerText = "Subscribe for RM35/mo";
+            btnElement.disabled = false;
+        }
+    } catch (error) {
+        alert("Server connection failed. Is Node running?");
+        btnElement.innerText = "Subscribe for RM35/mo";
+        btnElement.disabled = false;
+    }
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
