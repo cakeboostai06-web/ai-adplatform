@@ -191,7 +191,6 @@
 </div>
 
 <!-- Subscription Modal -->
-<!-- Subscription Modal -->
 <div class="modal fade" id="paywallModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content p-4 border-0 shadow-lg" style="background: linear-gradient(135deg, #2a0b38 0%, #130a1c 100%); border: 1px solid #ff85c6 !important;">
@@ -211,7 +210,6 @@
                 </ul>
             </div>
             <div class="modal-footer border-0 pt-0 flex-column">
-                <!-- THE FIX IS INJECTED DIRECTLY INTO THIS BUTTON -->
                 <button onclick="forceStripeCheckout(this)" type="button" class="btn btn-gradient w-100 py-3 fs-5 mb-2">Subscribe for RM35/mo</button>
                 <small style="color: #c084fc;">Cancel anytime. Secure checkout.</small>
             </div>
@@ -225,7 +223,8 @@ async function forceStripeCheckout(btnElement) {
     btnElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Connecting...';
     btnElement.disabled = true;
     try {
-        const response = await fetch('http://localhost:3001/api/create-checkout-session', { method: 'POST' });
+        // FIXED: Using relative path so it automatically uses the Railway domain
+        const response = await fetch('/api/create-checkout-session', { method: 'POST' });
         const data = await response.json();
         if (data.url) {
             window.location.href = data.url; 

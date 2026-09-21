@@ -22,7 +22,8 @@ document.getElementById('navUpgradeBtn').addEventListener('click', () => {
 // --- AUTHENTICATION & PROFILE PICTURE FIX ---
 async function checkAuthStatus() {
     try {
-        const response = await fetch('http://localhost:3001/api/current-user');
+        // FIXED: Relative path
+        const response = await fetch('/api/current-user');
         const user = await response.json();
         
         if (user && user.email) {
@@ -33,7 +34,7 @@ async function checkAuthStatus() {
             document.getElementById('userProfileMenu').classList.remove('d-none');
             document.getElementById('userNameDisplay').innerText = user.name;
             
-            // FIX: Assign the Google picture to the avatar!
+            // Assign the Google picture to the avatar
             if (user.picture) {
                 document.getElementById('userAvatarDisplay').src = user.picture;
             }
@@ -78,7 +79,8 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
     document.getElementById('results').classList.add('d-none');
 
     try {
-        const response = await fetch('http://localhost:3001/api/generate-campaign', {
+        // FIXED: Relative path
+        const response = await fetch('/api/generate-campaign', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ businessName, prompt, includeQr, qrName, qrContact, qrLocation, qrHours })
@@ -90,27 +92,23 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
             const data = result.data;
             console.log("1. Full result from server:", result);
             console.log("2. What poster URL is being sent:", data.posterUrl || data.imageUrl);
+            
             document.getElementById('fbOutput').innerText = data.captionsAndTags.facebook;
             document.getElementById('igOutput').innerText = data.captionsAndTags.instagram;
             document.getElementById('waOutput').innerText = data.captionsAndTags.whatsapp;
-            document.getElementById('posterUrl').src = result.data.posterUrl;
-            document.getElementById('qrOutput').src = result.data.qrCodeUrl;
-
+            
             const imgLink = data.posterUrl || data.imageUrl || data.image || data.poster || result.posterUrl || result.imageUrl;
             console.log("Final captured image link:", imgLink);
     
             if (imgLink) {
-            document.getElementById('posterUrl').src = imgLink;
+                document.getElementById('posterUrl').src = imgLink;
             }
-    
 
             const tagBox = document.getElementById('hashtagContainer');
             tagBox.innerHTML = '';
             data.captionsAndTags.hashtags.forEach(tag => {
                 tagBox.innerHTML += `<span class="badge-tag">${tag}</span>`;
             });
-
-            document.getElementById('posterUrl').src = result.data.posterUrl;
 
             const qrWrapper = document.getElementById('qrCardWrapper');
             if (data.qrCodeUrl) {
@@ -136,7 +134,8 @@ const paywallModal = new bootstrap.Modal(document.getElementById('paywallModal')
 document.getElementById('downloadBtn').addEventListener('click', () => {
     if (!currentUser) {
         alert("Please continue with Gmail first to save and download assets.");
-        window.location.href = 'http://localhost:3001/auth/google';
+        // FIXED: Relative path
+        window.location.href = '/auth/google';
         return;
     }
     if (currentUser.subscription_status !== 'premium') {
@@ -155,7 +154,8 @@ if (checkoutBtn) {
         checkoutBtn.disabled = true;
 
         try {
-            const response = await fetch('http://localhost:3001/api/create-checkout-session', {
+            // FIXED: Relative path
+            const response = await fetch('/api/create-checkout-session', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -178,12 +178,14 @@ if (checkoutBtn) {
         }
     });
 }
+
 // --- GOOGLE LOGIN BUTTON ---
 const googleBtn = document.getElementById('googleLoginBtn');
 if (googleBtn) {
     googleBtn.addEventListener('click', () => {
         // Adds a loading spinner so you know it is working
         googleBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Connecting...';
-        window.location.href = 'http://localhost:3001/auth/google';
+        // FIXED: Relative path
+        window.location.href = '/auth/google';
     });
 }
