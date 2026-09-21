@@ -35,8 +35,8 @@ function getLocalIp() {
     }
     return 'localhost';
 }
-const PORT = process.env.PORT || 3001;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const PORT = process.env.PORT || 8080;
+const BASE_URL = process.env.BASE_URL || `https://cakeboost-ai.up.railway.app/`;
 
 // --- MYSQL DATABASE CONNECTION ---
 const db = mysql.createPool({
