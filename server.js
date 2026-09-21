@@ -164,19 +164,20 @@ app.post('/api/generate-campaign', async (req, res) => {
     const { businessName, prompt, includeQr, qrName, qrContact, qrLocation, qrHours } = req.body;
 
     try {
+        // 1. OpenAI GPT acts as the Art Director
         const textResponse = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             response_format: { type: "json_object" },
             messages: [
                 {
                     role: "system",
-                    content: `You are an expert digital marketer. Respond ONLY with a JSON object in this exact format:
+                    content: `You are an expert digital marketer and art director. Respond ONLY with a JSON object in this exact format:
                     {
                         "facebook": "Engaging facebook post",
                         "instagram": "Catchy instagram post",
                         "whatsapp": "Friendly whatsapp broadcast",
                         "hashtags": ["#Tag1", "#Tag2", "#Tag3"],
-                        "imagePrompt": "Highly detailed prompt for an AI image generator to create a commercial advertising poster. Include lighting and aesthetic. No text overlays."
+                        "imagePrompt": "A highly detailed visual prompt for an AI image generator to create a stunning marketing poster. You MUST instruct the AI to incorporate typography and write the business name prominently. Describe the exact font style, text placement, colors, and the dramatic background product photography."
                     }`
                 },
                 { role: "user", content: `Client: "${businessName}". Goal: "${prompt}".` }
@@ -185,9 +186,10 @@ app.post('/api/generate-campaign', async (req, res) => {
 
         const aiData = JSON.parse(textResponse.choices[0].message.content);
 
+        // 2. OpenAI generates the enterprise poster with text
         const imageResponse = await openai.images.generate({
-            model: "gpt-image-2.5-sunburst",
-            prompt: `A professional advertising poster for a brand named ${businessName}. ${aiData.imagePrompt}. High-end commercial photography, striking typography, bold design, 4k resolution.`,
+            model: "gpt-image-2.5-sunburst", 
+            prompt: `Create a high-end commercial advertising poster. ${aiData.imagePrompt}. The poster MUST prominently feature the exact text "${businessName}" written in beautiful, readable typography. Bold graphic design layout, 4k resolution.`,
             n: 1,
             size: "1024x1024"
         });
