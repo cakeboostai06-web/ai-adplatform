@@ -12,22 +12,17 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { OpenAI } = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const app = express();
-app.use(cors({ origin: 'http://localhost:3001', credentials: true }));
-app.use(express.json());
-app.use(express.static(__dirname)); 
 
-// --- NETWORK SETUP ---
+// --- NETWORK & URL SETUP ---
 function getLocalIp() {
     const nets = networkInterfaces();
     for (const name of Object.keys(nets)) {
-        // Ignore VirtualBox, Hyper-V, and VMware virtual adapters
         const lower = name.toLowerCase();
         if (lower.includes('virtual') || lower.includes('vbox') || lower.includes('vmware') || lower.includes('vethernet')) {
             continue;
         }
 
         for (const net of nets[name]) {
-            // Ignore internal loopbacks and non-IPv4 addresses
             if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('192.168.56.')) {
                 return net.address;
             }
@@ -35,29 +30,57 @@ function getLocalIp() {
     }
     return 'localhost';
 }
-const PORT = process.env.PORT || 8080;
-const BASE_URL = process.env.BASE_URL || `https://cakeboost-ai.up.railway.app/`;
+
+const PORT = process.env.PORT || 3001;
+
+// Strip any trailing slash so paths never end up with double slashes (//)
+let rawBaseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+const BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+
+// Allow CORS from both Railway domain and localhost
+app.use(cors({ 
+    origin: [BASE_URL, 'http://localhost:3001', 'http://localhost:8080'],
+    credentials: true 
+}));
+app.use(express.json());
+app.use(express.static(__dirname)); 
+
+// Trust proxy for secure cookies / sessions on Railway HTTPS
+app.set('trust proxy', 1);
 
 // --- MYSQL DATABASE CONNECTION ---
-const db = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'cakeboost_db',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-});
+// Works with either individual variables or Railway's direct MYSQL_URL
+const dbConfig = process.env.MYSQL_URL || process.env.DATABASE_URL
+    ? (process.env.MYSQL_URL || process.env.DATABASE_URL)
+    : {
+        host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
+        port: Number(process.env.DB_PORT || process.env.MYSQLPORT || 3306),
+        user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+        password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+        database: process.env.DB_NAME || process.env.MYSQLDATABASE || 'cakeboost_db',
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+    };
+
+const db = mysql.createPool(dbConfig);
 
 db.getConnection()
-    .then(() => console.log('✅ Connected to CakeBoost MySQL Database!'))
+    .then((conn) => {
+        console.log('✅ Connected to CakeBoost MySQL Database!');
+        conn.release();
+    })
     .catch((err) => console.error('❌ Database connection failed:', err.message));
 
 // --- GOOGLE AUTHENTICATION SETUP ---
 app.use(session({
     secret: process.env.SESSION_SECRET || 'cakeboost_super_secret',
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
+    }
 }));
 
 app.use(passport.initialize());
@@ -91,8 +114,7 @@ async (accessToken, refreshToken, profile, done) => {
     } catch (error) {
         return done(error, null);
     }
-  }
-));
+}));
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
@@ -101,16 +123,20 @@ passport.deserializeUser((user, done) => done(null, user));
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 app.get('/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => { res.redirect(`${BASE_URL}`); }
+    passport.authenticate('google', { failureRedirect: '/' }),
+    (req, res) => { 
+        res.redirect('/'); 
+    }
 );
 
-app.get('/api/current-user', (req, res) => { res.send(req.user || null); });
+app.get('/api/current-user', (req, res) => { 
+    res.send(req.user || null); 
+});
 
 app.get('/api/logout', (req, res) => {
     req.logout((err) => {
         if (err) return console.error(err);
-        res.redirect(`${BASE_URL}`);
+        res.redirect('/');
     });
 });
 
@@ -135,12 +161,9 @@ app.post('/api/create-checkout-session', async (req, res) => {
 const generatedCards = new Map();
 
 app.post('/api/generate-campaign', async (req, res) => {
-    console.log("DEBUG - NODE IS USING THIS KEY:", openai.apiKey); 
-    
     const { businessName, prompt, includeQr, qrName, qrContact, qrLocation, qrHours } = req.body;
-    // ... the rest of your code
+
     try {
-        // 1. OpenAI GPT acts as the Art Director (Bypasses Google entirely)
         const textResponse = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             response_format: { type: "json_object" },
@@ -162,21 +185,25 @@ app.post('/api/generate-campaign', async (req, res) => {
 
         const aiData = JSON.parse(textResponse.choices[0].message.content);
 
-        // 2. OpenAI generates the enterprise poster
         const imageResponse = await openai.images.generate({
             model: "gpt-image-2.5-sunburst",
             prompt: `A professional advertising poster for a brand named ${businessName}. ${aiData.imagePrompt}. High-end commercial photography, striking typography, bold design, 4k resolution.`,
             n: 1,
-            size: "1024x1024",
+            size: "1024x1024"
         });
 
-        // 3. Convert the raw data into a displayable browser image link
         const posterUrl = `data:image/png;base64,${imageResponse.data[0].b64_json}`;
-
-        // 3. Smart QR
         const qrResult = includeQr ? await generateSmartQR(qrName, qrContact, qrLocation, qrHours, businessName) : null;
 
-        res.json({ status: 'success', data: { captionsAndTags: aiData, posterUrl: posterUrl,imageUrl: posterUrl, qrCodeUrl: qrResult } });
+        res.json({ 
+            status: 'success', 
+            data: { 
+                captionsAndTags: aiData, 
+                posterUrl: posterUrl, 
+                imageUrl: posterUrl, 
+                qrCodeUrl: qrResult 
+            } 
+        });
     } catch (error) {
         console.error("Enterprise Generation Error:", error);
         res.status(500).json({ status: 'error', message: 'Failed to generate campaign. Check API keys.' });
@@ -185,7 +212,7 @@ app.post('/api/generate-campaign', async (req, res) => {
 
 async function generateSmartQR(name, contact, location, hours, businessName) {
     const cardId = Date.now().toString();
-    const cardUrl = BASE_URL + '/card/' + cardId;
+    const cardUrl = `${BASE_URL}/card/${cardId}`;
     const qrImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(cardUrl)}&size=450&dark=0f172a&light=ffffff&margin=2`;
     generatedCards.set(cardId, { name: name || businessName, contact, location, hours, qrImageUrl });
     return qrImageUrl;
@@ -254,6 +281,6 @@ app.get('/card/:id', (req, res) => {
     res.send(html);
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 CakeBoost Server running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 CakeBoost Server running on port ${PORT}`);
 });
