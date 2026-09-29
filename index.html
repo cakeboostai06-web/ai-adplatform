@@ -53,10 +53,12 @@
                     <img src="https://via.placeholder.com/40" id="userAvatarDisplay" class="user-avatar" alt="Profile">
                 </div>
                 <ul class="dropdown-menu dropdown-menu-end dropdown-menu-custom mt-2 shadow">
+                    <li><a class="dropdown-item" href="#" id="navProfileBtn"><i class="bi bi-person-circle me-2"></i> Profile Settings</a></li>
                     <li><a class="dropdown-item" href="#" id="navHistoryBtn"><i class="bi bi-clock-history me-2"></i> Download History</a></li>
                     <li><a class="dropdown-item" href="#" id="navUpgradeBtn"><i class="bi bi-gem me-2" style="color: #ec4899;"></i> Subscription Settings</a></li>
                     <li><hr class="dropdown-divider" style="border-color: #5a2c7a;"></li>
                     <li><a class="dropdown-item text-danger" href="/api/logout"><i class="bi bi-box-arrow-right me-2"></i> Log Out</a></li>
+                </ul>
                 </ul>
             </div>
         </div>
@@ -186,6 +188,39 @@
     <div class="row g-4" id="historyGrid">
         <div class="col-12 text-center text-secondary py-5">
             Loading your past generated magic...
+        </div>
+    </div>
+</div>
+
+<!-- Profile Management Modal -->
+<div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-4 border-0 shadow-lg" style="background: linear-gradient(135deg, #2a0b38 0%, #130a1c 100%); border: 1px solid #5a2c7a !important;">
+            <div class="modal-header border-0 pb-0 justify-content-between align-items-center">
+                <h4 class="fw-bold text-white mb-0">Profile Settings</h4>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-4">
+                <div class="text-center mb-4">
+                    <img src="" id="modalAvatarPreview" class="rounded-circle border border-2 border-primary mb-3 shadow" style="width: 80px; height: 80px; object-fit: cover;">
+                    
+                    <div id="manageSubContainer" class="d-none mt-2">
+                        <button id="manageSubBtn" class="btn btn-outline-light btn-sm rounded-pill px-4 py-2" style="border-color: #c084fc;">
+                            <i class="bi bi-credit-card me-2" style="color: #c084fc;"></i> Manage Subscription
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label small text-uppercase fw-semibold" style="color: #e9d5ff;">Display Name</label>
+                    <input type="text" id="profileNameInput" class="form-control">
+                </div>
+                <div class="mb-4">
+                    <label class="form-label small text-uppercase fw-semibold" style="color: #e9d5ff;">Profile Picture URL</label>
+                    <input type="text" id="profilePicInput" class="form-control" placeholder="Paste an image URL here">
+                </div>
+                <button id="saveProfileBtn" class="btn btn-gradient w-100 py-3 fw-bold">Save Changes</button>
+            </div>
         </div>
     </div>
 </div>

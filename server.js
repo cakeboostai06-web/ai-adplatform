@@ -184,7 +184,7 @@ app.get('/api/current-user', async (req, res) => {
             const freshUserData = users[0];
             
             // Reattach the Google profile picture since it's not stored in the DB
-            freshUserData.picture = req.user.picture; 
+            freshUserData.picture = freshUserData.picture || req.user.picture;
             
             // Send the fresh Premium data to the frontend
             res.json(freshUserData);
@@ -195,6 +195,22 @@ app.get('/api/current-user', async (req, res) => {
         console.error("Error fetching fresh user data:", error);
         // Fallback to the old session data if the DB query fails
         res.json(req.user); 
+    }
+});
+
+app.put('/api/update-profile', async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { name, picture } = req.body;
+    
+    try {
+        await db.query(
+            "UPDATE users SET name = ?, picture = ? WHERE id = ?", 
+            [name, picture, req.user.id]
+        );
+        res.json({ status: 'success' });
+    } catch (error) {
+        console.error("Profile update error:", error);
+        res.status(500).json({ error: 'Failed to update profile' });
     }
 });
 

@@ -276,3 +276,80 @@ if (googleBtn) {
         window.location.href = '/auth/google';
     });
 }
+
+// --- PROFILE MANAGEMENT LOGIC ---
+const profileModal = new bootstrap.Modal(document.getElementById('profileModal'));
+
+// 1. Open Modal and Populate Data
+document.getElementById('navProfileBtn').addEventListener('click', () => {
+    document.getElementById('profileNameInput').value = currentUser.name;
+    document.getElementById('profilePicInput').value = currentUser.picture || '';
+    document.getElementById('modalAvatarPreview').src = currentUser.picture || 'https://via.placeholder.com/80';
+    
+    // Show Billing button ONLY if they are premium
+    if (currentUser.subscription_status === 'premium') {
+        document.getElementById('manageSubContainer').classList.remove('d-none');
+    } else {
+        document.getElementById('manageSubContainer').classList.add('d-none');
+    }
+    
+    profileModal.show();
+});
+
+// 2. Live Image Preview
+document.getElementById('profilePicInput').addEventListener('input', (e) => {
+    document.getElementById('modalAvatarPreview').src = e.target.value || 'https://via.placeholder.com/80';
+});
+
+// 3. Save Profile Changes
+document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+    const newName = document.getElementById('profileNameInput').value.trim();
+    const newPic = document.getElementById('profilePicInput').value.trim();
+    
+    const btn = document.getElementById('saveProfileBtn');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+    
+    try {
+        await fetch('/api/update-profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName, picture: newPic })
+        });
+        
+        // Update the UI instantly without refreshing
+        currentUser.name = newName;
+        currentUser.picture = newPic || currentUser.picture;
+        document.getElementById('userNameDisplay').innerText = newName;
+        document.getElementById('userAvatarDisplay').src = currentUser.picture;
+        
+        profileModal.hide();
+    } catch (error) {
+        alert("Failed to update profile.");
+    } finally {
+        btn.innerHTML = 'Save Changes';
+    }
+});
+
+// 4. Stripe Customer Portal Button
+document.getElementById('manageSubBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('manageSubBtn');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Connecting...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/customer-portal', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.url) {
+            window.location.href = data.url;
+        } else {
+            alert(data.error || "Could not open billing portal.");
+            btn.innerHTML = '<i class="bi bi-credit-card me-2" style="color: #c084fc;"></i> Manage Subscription';
+            btn.disabled = false;
+        }
+    } catch (err) {
+        alert("Error connecting to secure checkout.");
+        btn.innerHTML = '<i class="bi bi-credit-card me-2" style="color: #c084fc;"></i> Manage Subscription';
+        btn.disabled = false;
+    }
+});
