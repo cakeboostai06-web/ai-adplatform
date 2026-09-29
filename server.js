@@ -8,35 +8,16 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); 
 
-// --- PURE ENTERPRISE AI SETUP (OpenAI Only) ---
 const { OpenAI } = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const app = express();
 
 // --- NETWORK & URL SETUP ---
-function getLocalIp() {
-    const nets = networkInterfaces();
-    for (const name of Object.keys(nets)) {
-        const lower = name.toLowerCase();
-        if (lower.includes('virtual') || lower.includes('vbox') || lower.includes('vmware') || lower.includes('vethernet')) {
-            continue;
-        }
-
-        for (const net of nets[name]) {
-            if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('192.168.56.')) {
-                return net.address;
-            }
-        }
-    }
-    return 'localhost';
-}
-
 const PORT = process.env.PORT || 3001;
-
-// Strip any trailing slash so paths never end up with double slashes (//)
 let rawBaseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
 const BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
+// --- STRIPE WEBHOOK (Must be before express.json) ---
 app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'];
     let event;
@@ -51,26 +32,18 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
     try {
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object;
-            const customerEmail = session.customer_email;
-            const customerId = session.customer;
-            
-            // Upgrade user to premium and save their Stripe Customer ID
             await db.query(
                 "UPDATE users SET subscription_status = 'premium', stripe_customer_id = ? WHERE email = ?", 
-                [customerId, customerEmail]
+                [session.customer, session.customer_email]
             );
-            console.log(`✅ Upgraded ${customerEmail} to Premium!`);
-            
+            console.log(`✅ Upgraded ${session.customer_email} to Premium!`);
         } else if (event.type === 'customer.subscription.deleted') {
             const subscription = event.data.object;
-            const customerId = subscription.customer;
-            
-            // Downgrade user back to free tier when subscription fully ends
             await db.query(
                 "UPDATE users SET subscription_status = 'free' WHERE stripe_customer_id = ?", 
-                [customerId]
+                [subscription.customer]
             );
-            console.log(`❌ Downgraded customer ${customerId} to Free tier.`);
+            console.log(`❌ Downgraded customer ${subscription.customer} to Free tier.`);
         }
         res.json({ received: true });
     } catch (err) {
@@ -79,19 +52,15 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async
     }
 });
 
-// Allow CORS from both Railway domain and localhost
 app.use(cors({ 
     origin: [BASE_URL, 'http://localhost:3001', 'http://localhost:8080'],
     credentials: true 
 }));
 app.use(express.json());
 app.use(express.static(__dirname)); 
-
-// Trust proxy for secure cookies / sessions on Railway HTTPS
 app.set('trust proxy', 1);
 
 // --- MYSQL DATABASE CONNECTION ---
-// Works with either individual variables or Railway's direct MYSQL_URL
 const dbConfig = process.env.MYSQL_URL || process.env.DATABASE_URL
     ? (process.env.MYSQL_URL || process.env.DATABASE_URL)
     : {
@@ -106,7 +75,6 @@ const dbConfig = process.env.MYSQL_URL || process.env.DATABASE_URL
     };
 
 const db = mysql.createPool(dbConfig);
-
 db.getConnection()
     .then((conn) => {
         console.log('✅ Connected to CakeBoost MySQL Database!');
@@ -119,10 +87,7 @@ app.use(session({
     secret: process.env.SESSION_SECRET || 'cakeboost_super_secret',
     resave: false,
     saveUninitialized: false,
-    cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax'
-    }
+    cookie: { secure: process.env.NODE_ENV === 'production', sameSite: 'lax' }
 }));
 
 app.use(passport.initialize());
@@ -150,7 +115,7 @@ async (accessToken, refreshToken, profile, done) => {
             );
             user = { id: result.insertId, email, name, subscription_status: 'free', picture };
         } else {
-            user.picture = picture; 
+            user.picture = user.picture || picture; 
         }
         return done(null, user);
     } catch (error) {
@@ -161,55 +126,37 @@ async (accessToken, refreshToken, profile, done) => {
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
 
-// --- AUTHENTICATION ROUTES ---
+// --- AUTHENTICATION & PROFILE ROUTES ---
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 app.get('/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),
-    (req, res) => { 
-        res.redirect('/'); 
-    }
+    (req, res) => { res.redirect('/'); }
 );
 
-// --- CURRENT USER ROUTE (Forced DB Refresh) ---
 app.get('/api/current-user', async (req, res) => {
-    // If no session exists, return null
     if (!req.user) return res.json(null);
-    
     try {
-        // Query the database to get the absolute newest status (Premium vs Free)
         const [users] = await db.query("SELECT * FROM users WHERE id = ?", [req.user.id]);
-        
         if (users.length > 0) {
-            const freshUserData = users[0];
-            
-            // Reattach the Google profile picture since it's not stored in the DB
-            freshUserData.picture = freshUserData.picture || req.user.picture;
-            
-            // Send the fresh Premium data to the frontend
-            res.json(freshUserData);
+            const freshUser = users[0];
+            freshUser.picture = freshUser.picture || req.user.picture;
+            res.json(freshUser);
         } else {
             res.json(null);
         }
     } catch (error) {
-        console.error("Error fetching fresh user data:", error);
-        // Fallback to the old session data if the DB query fails
-        res.json(req.user); 
+        res.json(req.user);
     }
 });
 
 app.put('/api/update-profile', async (req, res) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { name, picture } = req.body;
-    
     try {
-        await db.query(
-            "UPDATE users SET name = ?, picture = ? WHERE id = ?", 
-            [name, picture, req.user.id]
-        );
+        await db.query("UPDATE users SET name = ?, picture = ? WHERE id = ?", [name, picture, req.user.id]);
         res.json({ status: 'success' });
     } catch (error) {
-        console.error("Profile update error:", error);
         res.status(500).json({ error: 'Failed to update profile' });
     }
 });
@@ -221,53 +168,26 @@ app.get('/api/logout', (req, res) => {
     });
 });
 
-// --- STRIPE CHECKOUT ROUTE ---
-// --- STRIPE CHECKOUT ROUTE ---
+// --- STRIPE CHECKOUT & PORTAL ROUTES ---
 app.post('/api/create-checkout-session', async (req, res) => {
-    if (!req.user) return res.status(401).json({ error: 'You must be logged in to subscribe.' });
-
+    if (!req.user) return res.status(401).json({ error: 'You must be logged in.' });
     try {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             mode: 'subscription',
-            customer_email: req.user.email, // Links the payment to the Google user
+            customer_email: req.user.email,
             line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
             success_url: `${BASE_URL}/?payment=success`,
             cancel_url: `${BASE_URL}/?payment=cancelled`,
         });
         res.json({ url: session.url });
     } catch (error) {
-        console.error("Stripe Checkout Error:", error.message);
         res.status(500).json({ error: 'Failed to create checkout session.' });
     }
 });
 
-// --- STRIPE CUSTOMER PORTAL ROUTE ---
-// --- STRIPE CHECKOUT ROUTE ---
-app.post('/api/create-checkout-session', async (req, res) => {
-    if (!req.user) return res.status(401).json({ error: 'You must be logged in to subscribe.' });
-
-    try {
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            mode: 'subscription',
-            customer_email: req.user.email, // Links the payment to the Google user
-            line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
-            success_url: `${BASE_URL}/?payment=success`,
-            cancel_url: `${BASE_URL}/?payment=cancelled`,
-        });
-        res.json({ url: session.url });
-    } catch (error) {
-        console.error("Stripe Checkout Error:", error.message);
-        res.status(500).json({ error: 'Failed to create checkout session.' });
-    }
-});
-
-// --- STRIPE CUSTOMER PORTAL ROUTE ---
 app.post('/api/customer-portal', async (req, res) => {
-    if (!req.user || !req.user.stripe_customer_id) {
-        return res.status(400).json({ error: 'No active Stripe subscription found.' });
-    }
+    if (!req.user || !req.user.stripe_customer_id) return res.status(400).json({ error: 'No active subscription.' });
     try {
         const portalSession = await stripe.billingPortal.sessions.create({
             customer: req.user.stripe_customer_id,
@@ -275,44 +195,30 @@ app.post('/api/customer-portal', async (req, res) => {
         });
         res.json({ url: portalSession.url });
     } catch (error) {
-        console.error("Stripe Portal Error:", error.message);
-        res.status(500).json({ error: 'Failed to open customer portal.' });
+        res.status(500).json({ error: 'Failed to open portal.' });
     }
 });
 
-// --- GENERATOR & QR THEME ENGINE ---
+// --- GENERATOR & QR THEME ENGINE (STABLE DALL-E 3) ---
 const generatedCards = new Map();
 
 app.post('/api/generate-campaign', async (req, res) => {
-    // 1. Validate user and input
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { businessName, prompt, includeQr, qrName, qrContact, qrLocation, qrHours } = req.body;
-    const userId = req.user.id;
 
     try {
-        // 2. BRAND CONSISTENCY CHECK: Look for an existing style for this business
-        const [existingCampaigns] = await db.query(
-            "SELECT image_prompt FROM campaigns WHERE user_id = ? AND business_name = ? AND image_prompt IS NOT NULL ORDER BY created_at ASC LIMIT 1",
-            [userId, businessName]
-        );
-        
-        // If they generated before, grab the saved style. If not, it remains null.
-        const savedStyle = existingCampaigns.length > 0 ? existingCampaigns[0].image_prompt : null;
-
-        // 3. Generate Social Copy & New Art Direction
         const textResponse = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             response_format: { type: "json_object" },
             messages: [
                 {
                     role: "system",
-                    content: `You are an expert digital marketer and art director. Respond ONLY with a JSON object in this exact format:
+                    content: `You are an expert digital marketer. Respond ONLY with a JSON object in this exact format:
                     {
                         "facebook": "Engaging facebook post",
                         "instagram": "Catchy instagram post",
                         "whatsapp": "Friendly whatsapp broadcast",
-                        "hashtags": ["#Tag1", "#Tag2"],
-                        "imagePrompt": "A highly detailed visual prompt for an AI image generator to create a stunning marketing poster. Describe exact font style, text placement, colors, and the dramatic background."
+                        "hashtags": ["#Tag1", "#Tag2", "#Tag3"],
+                        "imagePrompt": "Highly detailed prompt for an AI image generator to create a commercial advertising poster featuring the exact text '${businessName}'. Include lighting and aesthetic."
                     }`
                 },
                 { role: "user", content: `Client: "${businessName}". Goal: "${prompt}".` }
@@ -321,56 +227,28 @@ app.post('/api/generate-campaign', async (req, res) => {
 
         const aiData = JSON.parse(textResponse.choices[0].message.content);
 
-        // 4. STYLE LOCKING: Use saved style if it exists, otherwise use the new one
-        const activeImagePrompt = savedStyle || aiData.imagePrompt;
-
-        if (savedStyle) {
-            console.log(`🔒 Locked brand style applied for: ${businessName}`);
-        } else {
-            console.log(`✨ New brand style created for: ${businessName}`);
-        }
-
-        // 5. Generate the Poster using the locked style
         const imageResponse = await openai.images.generate({
             model: "gpt-image-2.5-sunburst",
-            prompt: `Create a high-end commercial advertising poster. ${aiData.imagePrompt}. The poster MUST prominently feature the exact text "${businessName}" written in beautiful, readable typography. Bold graphic design layout, 4k resolution.`,
+            prompt: `A professional advertising poster. ${aiData.imagePrompt}. High-end commercial photography, striking typography, bold design, 4k resolution.`,
             n: 1,
             size: "1024x1024"
         });
-        
-        const posterUrl = `data:image/png;base64,${imageResponse.data[0].b64_json}`;
-        const qrResult = includeQr ? await generateSmartQR(qrName, qrContact, qrLocation, qrHours, businessName) : null;
 
-        // 6. Generate Smart QR (if requested)
-        if (includeQr) {
-            // (Keep your existing QR generation code here)
-            // finalQrUrl = ... 
-        }
+        const posterUrl = imageResponse.data[0].url;
+        const qrResult = includeQr ? await generateSmartQR(qrName || businessName, qrContact, qrLocation, qrHours, businessName) : null;
 
-        // 7. Save to Database (NOW INCLUDES THE activeImagePrompt)
-        await db.query(
-            "INSERT INTO campaigns (user_id, business_name, prompt, poster_url, qr_url, facebook_copy, instagram_copy, whatsapp_copy, image_prompt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [userId, businessName, prompt, posterUrl, finalQrUrl, aiData.facebook, aiData.instagram, aiData.whatsapp, activeImagePrompt]
-        );
-
-        // 8. Send Success Response to Frontend
-        res.json({
-            status: 'success',
-            data: {
-                captionsAndTags: aiData,
-                posterUrl: posterUrl,
-                imageUrl: posterUrl,
-                qrCodeUrl: qrResult
-            }
+        res.json({ 
+            status: 'success', 
+            data: { 
+                captionsAndTags: aiData, 
+                posterUrl: posterUrl, 
+                imageUrl: posterUrl, 
+                qrCodeUrl: qrResult 
+            } 
         });
-
     } catch (error) {
-        console.error("Campaign Generation Error:", error);
-        res.status(500).json({ error: 'Failed to generate campaign' });
-        alert("Server Error: " + (result.error || "Check Railway Logs"));
-            document.getElementById('loading').classList.add('d-none');
-            document.getElementById('emptyState').classList.remove('d-none');
-            document.getElementById('results').classList.add('d-none');
+        console.error("Generation Error:", error);
+        res.status(500).json({ status: 'error', message: 'Failed to generate campaign. Check API keys.' });
     }
 });
 
