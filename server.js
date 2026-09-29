@@ -366,6 +366,10 @@ app.post('/api/generate-campaign', async (req, res) => {
     } catch (error) {
         console.error("Campaign Generation Error:", error);
         res.status(500).json({ error: 'Failed to generate campaign' });
+        alert("Server Error: " + (result.error || "Check Railway Logs"));
+            document.getElementById('loading').classList.add('d-none');
+            document.getElementById('emptyState').classList.remove('d-none');
+            document.getElementById('results').classList.add('d-none');
     }
 });
 
