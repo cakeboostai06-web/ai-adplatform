@@ -54,6 +54,39 @@ async function checkAuthStatus() {
 }
 checkAuthStatus();
 
+// --- WORKSPACE RESTORE LOGIC ---
+function restoreWorkspace() {
+    const savedCampaign = localStorage.getItem('currentCampaign');
+    if (savedCampaign) {
+        const data = JSON.parse(savedCampaign);
+        
+        document.getElementById('fbOutput').innerText = data.captionsAndTags.facebook;
+        document.getElementById('igOutput').innerText = data.captionsAndTags.instagram;
+        document.getElementById('waOutput').innerText = data.captionsAndTags.whatsapp;
+        
+        const imgLink = data.posterUrl || data.imageUrl;
+        if (imgLink) document.getElementById('posterUrl').src = imgLink;
+
+        const tagBox = document.getElementById('hashtagContainer');
+        tagBox.innerHTML = '';
+        data.captionsAndTags.hashtags.forEach(tag => {
+            tagBox.innerHTML += `<span class="badge-tag">${tag}</span>`;
+        });
+
+        const qrWrapper = document.getElementById('qrCardWrapper');
+        if (data.qrCodeUrl) {
+            qrWrapper.style.display = 'block';
+            document.getElementById('qrOutput').src = data.qrCodeUrl;
+        } else {
+            qrWrapper.style.display = 'none';
+        }
+
+        document.getElementById('emptyState').classList.add('d-none');
+        document.getElementById('results').classList.remove('d-none');
+    }
+}
+restoreWorkspace();
+
 // --- GENERATOR LOGIC ---
 document.getElementById('includeQrToggle').addEventListener('change', (e) => {
     document.getElementById('qrFields').style.display = e.target.checked ? 'block' : 'none';
@@ -77,7 +110,7 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
     document.getElementById('loading').classList.remove('d-none');
     document.getElementById('emptyState').classList.add('d-none');
     document.getElementById('results').classList.add('d-none');
-
+    localStorage.setItem('currentCampaign', JSON.stringify(data));
     try {
         // FIXED: Relative path
         const response = await fetch('/api/generate-campaign', {
@@ -129,12 +162,12 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
 });
 
 // --- DOWNLOADING & PAYWALL TRIGGER ---
+// --- DOWNLOADING & PAYWALL TRIGGER (ZIP EXPORT) ---
 const paywallModal = new bootstrap.Modal(document.getElementById('paywallModal'));
 
-document.getElementById('downloadBtn').addEventListener('click', () => {
+document.getElementById('downloadBtn').addEventListener('click', async () => {
     if (!currentUser) {
         alert("Please continue with Gmail first to save and download assets.");
-        // FIXED: Relative path
         window.location.href = '/auth/google';
         return;
     }
@@ -142,7 +175,61 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
         paywallModal.show();
         return;
     }
-    alert("Downloading your high-res assets! Saving to history...");
+    
+    const downloadBtn = document.getElementById('downloadBtn');
+    const originalText = downloadBtn.innerHTML;
+    downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Packaging Assets...';
+    downloadBtn.disabled = true;
+
+    try {
+        const savedCampaign = localStorage.getItem('currentCampaign');
+        if (!savedCampaign) return alert("No campaign data found to download.");
+        const data = JSON.parse(savedCampaign);
+
+        const zip = new JSZip();
+
+        // 1. Add Text Copy (.txt)
+        const textContent = `
+FACEBOOK:
+${data.captionsAndTags.facebook}
+
+INSTAGRAM:
+${data.captionsAndTags.instagram}
+
+WHATSAPP:
+${data.captionsAndTags.whatsapp}
+
+HASHTAGS:
+${data.captionsAndTags.hashtags.join(' ')}
+        `;
+        zip.file("Social_Media_Copy.txt", textContent);
+
+        // 2. Fetch and Add AI Poster (.png)
+        const imgLink = data.posterUrl || data.imageUrl;
+        if (imgLink) {
+            const response = await fetch(imgLink);
+            const blob = await response.blob();
+            zip.file("AI_Marketing_Poster.png", blob);
+        }
+
+        // 3. Fetch and Add QR Code (.png)
+        if (data.qrCodeUrl) {
+            const qrResponse = await fetch(data.qrCodeUrl);
+            const qrBlob = await qrResponse.blob();
+            zip.file("Smart_QR_Code.png", qrBlob);
+        }
+
+        // Generate and download the ZIP
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, "CakeBoost_Campaign_Assets.zip");
+
+    } catch (error) {
+        console.error("Download Error:", error);
+        alert("Failed to package assets. Please try again.");
+    } finally {
+        downloadBtn.innerHTML = originalText;
+        downloadBtn.disabled = false;
+    }
 });
 
 // --- STRIPE CHECKOUT BUTTON ---
