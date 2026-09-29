@@ -207,7 +207,7 @@ app.post('/api/generate-campaign', async (req, res) => {
 
     try {
         const textResponse = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
+            model: "gpt-4",
             response_format: { type: "json_object" },
             messages: [
                 {
