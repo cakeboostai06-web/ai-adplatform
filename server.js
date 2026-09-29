@@ -37,6 +37,48 @@ const PORT = process.env.PORT || 3001;
 let rawBaseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
 const BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
+app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    let event;
+
+    try {
+        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+        console.error('Webhook signature verification failed:', err.message);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    try {
+        if (event.type === 'checkout.session.completed') {
+            const session = event.data.object;
+            const customerEmail = session.customer_email;
+            const customerId = session.customer;
+            
+            // Upgrade user to premium and save their Stripe Customer ID
+            await db.query(
+                "UPDATE users SET subscription_status = 'premium', stripe_customer_id = ? WHERE email = ?", 
+                [customerId, customerEmail]
+            );
+            console.log(`✅ Upgraded ${customerEmail} to Premium!`);
+            
+        } else if (event.type === 'customer.subscription.deleted') {
+            const subscription = event.data.object;
+            const customerId = subscription.customer;
+            
+            // Downgrade user back to free tier when subscription fully ends
+            await db.query(
+                "UPDATE users SET subscription_status = 'free' WHERE stripe_customer_id = ?", 
+                [customerId]
+            );
+            console.log(`❌ Downgraded customer ${customerId} to Free tier.`);
+        }
+        res.json({ received: true });
+    } catch (err) {
+        console.error("Webhook Database Error:", err);
+        res.status(500).send("Database error processing webhook");
+    }
+});
+
 // Allow CORS from both Railway domain and localhost
 app.use(cors({ 
     origin: [BASE_URL, 'http://localhost:3001', 'http://localhost:8080'],
@@ -141,19 +183,61 @@ app.get('/api/logout', (req, res) => {
 });
 
 // --- STRIPE CHECKOUT ROUTE ---
+// --- STRIPE CHECKOUT ROUTE ---
 app.post('/api/create-checkout-session', async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'You must be logged in to subscribe.' });
+
     try {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             mode: 'subscription',
+            customer_email: req.user.email, // Links the payment to the Google user
             line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
             success_url: `${BASE_URL}/?payment=success`,
             cancel_url: `${BASE_URL}/?payment=cancelled`,
         });
         res.json({ url: session.url });
     } catch (error) {
-        console.error("Stripe Error:", error.message);
+        console.error("Stripe Checkout Error:", error.message);
         res.status(500).json({ error: 'Failed to create checkout session.' });
+    }
+});
+
+// --- STRIPE CUSTOMER PORTAL ROUTE ---
+// --- STRIPE CHECKOUT ROUTE ---
+app.post('/api/create-checkout-session', async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'You must be logged in to subscribe.' });
+
+    try {
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            mode: 'subscription',
+            customer_email: req.user.email, // Links the payment to the Google user
+            line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+            success_url: `${BASE_URL}/?payment=success`,
+            cancel_url: `${BASE_URL}/?payment=cancelled`,
+        });
+        res.json({ url: session.url });
+    } catch (error) {
+        console.error("Stripe Checkout Error:", error.message);
+        res.status(500).json({ error: 'Failed to create checkout session.' });
+    }
+});
+
+// --- STRIPE CUSTOMER PORTAL ROUTE ---
+app.post('/api/customer-portal', async (req, res) => {
+    if (!req.user || !req.user.stripe_customer_id) {
+        return res.status(400).json({ error: 'No active Stripe subscription found.' });
+    }
+    try {
+        const portalSession = await stripe.billingPortal.sessions.create({
+            customer: req.user.stripe_customer_id,
+            return_url: `${BASE_URL}/`,
+        });
+        res.json({ url: portalSession.url });
+    } catch (error) {
+        console.error("Stripe Portal Error:", error.message);
+        res.status(500).json({ error: 'Failed to open customer portal.' });
     }
 });
 
