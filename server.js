@@ -338,8 +338,8 @@ app.post('/api/generate-campaign', async (req, res) => {
             size: "1024x1024"
         });
         
-        const posterUrl = imageResponse.data[0].url;
-        let finalQrUrl = null;
+        const posterUrl = `data:image/png;base64,${imageResponse.data[0].b64_json}`;
+        const qrResult = includeQr ? await generateSmartQR(qrName, qrContact, qrLocation, qrHours, businessName) : null;
 
         // 6. Generate Smart QR (if requested)
         if (includeQr) {
@@ -357,9 +357,10 @@ app.post('/api/generate-campaign', async (req, res) => {
         res.json({
             status: 'success',
             data: {
-                posterUrl,
-                qrCodeUrl: finalQrUrl,
-                captionsAndTags: aiData
+                captionsAndTags: aiData,
+                posterUrl: posterUrl,
+                imageUrl: posterUrl,
+                qrCodeUrl: qrResult
             }
         });
 
