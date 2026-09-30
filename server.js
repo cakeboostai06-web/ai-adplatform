@@ -232,7 +232,7 @@ app.post('/api/generate-campaign', async (req, res) => {
         try {
             // 2. Image Generation (using dall-e-2 to bypass strict tier limits)
             const imageResponse = await openai.images.generate({
-                model: "dall-e-2",
+                model: "GPT-Image-2.5",
                 prompt: `A professional advertising poster. ${aiData.imagePrompt}. High quality.`,
                 n: 1,
                 size: "1024x1024"
